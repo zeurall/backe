@@ -51,9 +51,20 @@ exports.handler = async (event, context) => {
       `USER QUESTION: ${userMessage}`;
 
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+    const model = genAI.getGenerativeModel({
+      model: "gemini-1.5-flash-latest",
+    });
 
-    const result = await model.generateContent(prompt);
+    // ⭐ REQUIRED for your SDK version
+    const result = await model.generateContent({
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: prompt }],
+        },
+      ],
+    });
+
     const text = result.response.text();
 
     return {
@@ -61,7 +72,6 @@ exports.handler = async (event, context) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       body: JSON.stringify({ text }),
     };
-
   } catch (err) {
     console.error("Function Error:", err);
     return {
