@@ -1,4 +1,4 @@
-const { GoogleGenerativeAI } = require("google-generative-ai");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 exports.handler = async (event, context) => {
   const corsHeaders = {
@@ -52,7 +52,7 @@ exports.handler = async (event, context) => {
 
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash-latest",
+      model: "gemini-1.5-flash",
     });
 
     const result = await model.generateContent({
