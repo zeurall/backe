@@ -1,53 +1,65 @@
-// Filename: index.js (for your Cloudflare Worker)
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-export default {
-  async fetch(request, env, ctx) {
-    // Allows your GitHub Pages site to make requests to this worker
-    const corsHeaders = {
-      'Access-Control-Allow-Origin': '*', // In production, restrict this to your GitHub Pages URL
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
+exports.handler = async (event, context) => {
+  // CORS headers
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": "*", // in production restrict to your GitHub Pages domain
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+  };
+
+  // Handle preflight OPTIONS
+  if (event.httpMethod === "OPTIONS") {
+    return {
+      statusCode: 200,
+      headers: corsHeaders,
+      body: "",
+    };
+  }
+
+  // Only allow POST
+  if (event.httpMethod !== "POST") {
+    return {
+      statusCode: 405,
+      headers: corsHeaders,
+      body: "Expected POST request",
+    };
+  }
+
+  try {
+    // API key from Netlify environment variables
+    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+    if (!GEMINI_API_KEY) {
+      return {
+        statusCode: 500,
+        headers: corsHeaders,
+        body: "API key not configured",
+      };
+    }
+
+    // Parse request body
+    const requestBody = JSON.parse(event.body);
+
+    // Gemini SDK
+    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+
+    // Fetch response from Gemini
+    const result = await model.generateContent(requestBody);
+
+    return {
+      statusCode: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify(result.response),
     };
 
-    // Respond to pre-flight requests for CORS
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { headers: corsHeaders });
-    }
+  } catch (error) {
+    console.error("Error proxying request:", error);
 
-    if (request.method !== 'POST') {
-      return new Response('Expected POST request', { status: 405 });
-    }
-
-    // The Gemini API Key is securely stored as an environment variable in Cloudflare
-    const GEMINI_API_KEY = env.GEMINI_API_KEY;
-    if (!GEMINI_API_KEY) {
-        return new Response('API key not configured', { status: 500 });
-    }
-    
-    const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`;
-
-    try {
-      // Forward the request body from the client to the Gemini API
-      const requestBody = await request.json();
-
-      const geminiResponse = await fetch(GEMINI_API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      const data = await geminiResponse.json();
-
-      // Return the Gemini response to the client
-      return new Response(JSON.stringify(data), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-
-    } catch (error) {
-      console.error('Error proxying request:', error);
-      return new Response('Error processing your request', { status: 500 });
-    }
-  },
+    return {
+      statusCode: 500,
+      headers: corsHeaders,
+      body: "Error processing your request",
+    };
+  }
 };
