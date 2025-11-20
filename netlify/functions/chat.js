@@ -1,14 +1,12 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 exports.handler = async (event, context) => {
-  // CORS headers
   const corsHeaders = {
-    "Access-Control-Allow-Origin": "*", // in production restrict to your GitHub Pages domain
+    "Access-Control-Allow-Origin": "*",  // Change to your GitHub Pages domain in production
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
   };
 
-  // Handle preflight OPTIONS
   if (event.httpMethod === "OPTIONS") {
     return {
       statusCode: 200,
@@ -17,7 +15,6 @@ exports.handler = async (event, context) => {
     };
   }
 
-  // Only allow POST
   if (event.httpMethod !== "POST") {
     return {
       statusCode: 405,
@@ -27,7 +24,6 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    // API key from Netlify environment variables
     const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
     if (!GEMINI_API_KEY) {
       return {
@@ -37,29 +33,49 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Parse request body
-    const requestBody = JSON.parse(event.body);
+    const body = JSON.parse(event.body);
+    const context = body.context || "";
+    const question = body.contents || "";
 
-    // Gemini SDK
+    if (!question) {
+      return {
+        statusCode: 400,
+        headers: corsHeaders,
+        body: "Missing 'contents' (user question)",
+      };
+    }
+
+    // Build prompt
+    const prompt = 
+      `Based ONLY on the following research paper content, answer the user's question.\n\n` +
+      `PAPER CONTENT:\n${context}\n\n` +
+      `USER QUESTION: ${question}`;
+
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
-    // Fetch response from Gemini
-    const result = await model.generateContent(requestBody);
+    const result = await model.generateContent({
+      contents: [
+        {
+          parts: [{ text: prompt }]
+        }
+      ]
+    });
+
+    const botText = result.response.text();
 
     return {
       statusCode: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
-      body: JSON.stringify(result.response),
+      body: JSON.stringify({ text: botText }),
     };
 
-  } catch (error) {
-    console.error("Error proxying request:", error);
-
+  } catch (err) {
+    console.error("Error:", err);
     return {
       statusCode: 500,
       headers: corsHeaders,
-      body: "Error processing your request",
+      body: "Server error",
     };
   }
 };
