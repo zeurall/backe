@@ -55,7 +55,6 @@ exports.handler = async (event, context) => {
       model: "gemini-1.5-flash-latest",
     });
 
-    // ⭐ REQUIRED for your SDK version
     const result = await model.generateContent({
       contents: [
         {
