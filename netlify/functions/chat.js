@@ -38,6 +38,7 @@ exports.handler = async (event) => {
     // This model name WILL work with the "latest" library version
     const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
+    // The 'generateContent' method expects a simple string prompt
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
