@@ -1,5 +1,4 @@
 import fetch from "node-fetch";
-import OpenAI from "openai";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -32,6 +31,7 @@ export default async function handler(req, res) {
     const deepseekReply = deepseekData?.choices?.[0]?.message?.content;
 
     if (deepseekReply) return res.json({ source: "deepseek", reply: deepseekReply });
+    else console.log("DeepSeek returned empty response:", deepseekData);
   } catch (err) {
     console.log("DeepSeek error:", err.message);
   }
@@ -61,28 +61,40 @@ export default async function handler(req, res) {
     const grokReply = grokData?.choices?.[0]?.message?.content;
 
     if (grokReply) return res.json({ source: "grok", reply: grokReply });
+    else console.log("Grok returned empty response:", grokData);
   } catch (err) {
     console.log("Grok error:", err.message);
   }
 
   // =======================
-  // 3️⃣ OpenAI fallback
+  // 3️⃣ AllenAI Olmo fallback
   // =======================
   try {
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: message }],
+    const olmoResp = await fetch("https://api.allenai.org/olmo/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, // your Olmo API key here
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "allenai/olmo-3-32b-think",
+        messages: [
+          { role: "system", content: "You are a helpful assistant." },
+          { role: "user", content: message }
+        ],
+        temperature: 0.7,
+        max_tokens: 1000
+      }),
     });
 
-    const openaiReply = completion?.choices?.[0]?.message?.content;
-    if (openaiReply) return res.json({ source: "openai", reply: openaiReply });
+    const olmoData = await olmoResp.json();
+    const olmoReply = olmoData?.choices?.[0]?.message?.content;
+
+    if (olmoReply) return res.json({ source: "olmo", reply: olmoReply });
+    else console.log("Olmo returned empty response:", olmoData);
   } catch (err) {
-    console.log("OpenAI error:", err.message);
+    console.log("Olmo error:", err.message);
   }
 
-  // =======================
-  // If all fail
-  // =======================
   return res.status(500).json({ error: "All AI providers failed." });
 }
