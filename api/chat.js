@@ -8,98 +8,64 @@ export default async function handler(req, res) {
   }
 
   const { message } = req.body;
+  if (!message) return res.status(400).json({ error: "Message is required" });
 
-  if (!message) {
-    return res.status(400).json({ error: "Message is required" });
-  }
-
-  /* =======================
-     1. TRY DEEPSEEK FIRST
-  ======================= */
-
+  // 1️⃣ DeepSeek
   try {
-    const deepseekResponse = await fetch(
+    const deepseekResp = await fetch(
       "https://api.deepseek.com/v1/chat/completions",
       {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${process.env.DEEPSEEK_API_KEY}`,
-          "Content-Type": "application/json"
+          Authorization: `Bearer ${process.env.DEEPSEEK_API_KEY}`,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           model: "deepseek-chat",
-          messages: [
-            {
-              role: "user",
-              content: message
-            }
-          ]
-        })
+          messages: [{ role: "user", content: message }],
+        }),
       }
     );
-
-    const deepseekData = await deepseekResponse.json();
-
+    const deepseekData = await deepseekResp.json();
     if (deepseekData?.choices?.[0]?.message?.content) {
-      return res.json({
-        source: "deepseek",
-        reply: deepseekData.choices[0].message.content
-      });
+      return res.json({ source: "deepseek", reply: deepseekData.choices[0].message.content });
     }
-
-    console.log("DeepSeek failed, trying Gemini...");
-  } catch (error) {
-    console.log("DeepSeek error:", error.message);
+  } catch (err) {
+    console.log("DeepSeek error:", err.message);
   }
 
-  /* =======================
-     2. TRY GEMINI NEXT
-  ======================= */
-
+  // 2️⃣ Gemini
   try {
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const genAI = new GoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY });
+    const models = await genAI.listModels();
+    const modelId = models.find(m => m.supportedMethods.includes("generateText"))?.name;
 
-    const geminiResult = await model.generateContent(message);
-    const geminiReply = geminiResult.response.text();
-
-    if (geminiReply) {
-      return res.json({
-        source: "gemini",
-        reply: geminiReply
+    if (modelId) {
+      const geminiResp = await genAI.generateText({
+        model: modelId,
+        prompt: message,
+        temperature: 0.7,
       });
+      if (geminiResp?.candidates?.[0]?.content) {
+        return res.json({ source: "gemini", reply: geminiResp.candidates[0].content });
+      }
     }
-
-    console.log("Gemini failed, trying OpenAI...");
-  } catch (error) {
-    console.log("Gemini error:", error.message);
+  } catch (err) {
+    console.log("Gemini error:", err.message);
   }
 
-  /* =======================
-     3. FINALLY TRY OPENAI
-  ======================= */
-
+  // 3️⃣ OpenAI
   try {
-    const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY
-    });
-
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: [{ role: "user", content: message }]
+      messages: [{ role: "user", content: message }],
     });
-
     const openaiReply = completion?.choices?.[0]?.message?.content;
-
-    if (openaiReply) {
-      return res.json({
-        source: "openai",
-        reply: openaiReply
-      });
-    }
-
-  } catch (error) {
-    console.log("OpenAI error:", error.message);
-    return res.status(500).json({ error: "All AI providers failed." });
+    if (openaiReply) return res.json({ source: "openai", reply: openaiReply });
+  } catch (err) {
+    console.log("OpenAI error:", err.message);
   }
+
+  return res.status(500).json({ error: "All AI providers failed." });
 }
