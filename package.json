@@ -1,7 +1,8 @@
 {
-  "name": "chatbot-backend",
+  "name": "backe",
   "version": "1.0.0",
+  "type": "module",
   "dependencies": {
-    "@google/generative-ai": "^0.24.1"
+    "openai": "^4.20.1"
   }
 }
