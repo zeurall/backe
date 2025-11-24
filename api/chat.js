@@ -1,55 +1,33 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import OpenAI from "openai";
 
 export default async function handler(req, res) {
-  // CORS
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method Not Allowed" });
+    return res.status(405).json({ error: "Only POST requests allowed" });
   }
 
   try {
-    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+    const { message } = req.body;
 
-    if (!GEMINI_API_KEY) {
-      return res.status(500).json({ error: "API key not set" });
+    if (!message) {
+      return res.status(400).json({ error: "Message is required" });
     }
 
-    const { context = "", contents = "" } = req.body;
-
-    if (!contents) {
-      return res.status(400).json({ error: "Missing 'contents'" });
-    }
-
-    const prompt = `
-Based ONLY on the following research paper content, answer the user's question.
-
-PAPER CONTENT:
-${context}
-
-USER QUESTION:
-${contents}
-    `;
-
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-
-    const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash"
+    const client = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY
     });
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
+    const completion = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: message }]
+    });
 
-    res.status(200).json({ text });
+    const reply = completion.choices[0].message.content;
 
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: error.message });
+    res.status(200).json({ reply });
+
+  } catch (err) {
+    res.status(500).json({
+      error: err.message || "Something went wrong"
+    });
   }
 }
