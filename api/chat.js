@@ -1,6 +1,5 @@
 import fetch from "node-fetch";
 import OpenAI from "openai";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -38,25 +37,7 @@ export default async function handler(req, res) {
   }
 
   // =======================
-  // 2️⃣ Gemini (GoogleGenerativeAI)
-  // =======================
-  try {
-    const genAI = new GoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY });
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5" });
-
-    const geminiResp = await model.generateContent({
-      prompt: message,
-      temperature: 0.7
-    });
-
-    const geminiReply = geminiResp?.candidates?.[0]?.content;
-    if (geminiReply) return res.json({ source: "gemini", reply: geminiReply });
-  } catch (err) {
-    console.log("Gemini error:", err.message);
-  }
-
-  // =======================
-  // 3️⃣ Grok (xAI)
+  // 2️⃣ Grok (xAI)
   // =======================
   try {
     const grokResp = await fetch("https://api.x.ai/v1/chat/completions", {
@@ -85,7 +66,7 @@ export default async function handler(req, res) {
   }
 
   // =======================
-  // 4️⃣ OpenAI fallback
+  // 3️⃣ OpenAI fallback
   // =======================
   try {
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
