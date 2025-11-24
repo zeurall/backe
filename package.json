@@ -1,5 +1,7 @@
 {
+  "name": "chatbot-backend",
+  "version": "1.0.0",
   "dependencies": {
-    "@google/generative-ai": "latest"
+    "@google/generative-ai": "^0.24.1"
   }
 }
