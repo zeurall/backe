@@ -1,20 +1,21 @@
-import express from "express";
+// api/chat.js
 import fetch from "node-fetch";
 
-const router = express.Router();
-
-// Gemini models your API actually supports
 const MODELS = [
   "models/gemini-2.5-flash",
   "models/gemini-2.5-pro",
   "models/gemini-2.0-flash"
 ];
 
-router.post("/chat", async (req, res) => {
-  try {
-    const { message, context } = req.body;
+export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
-    // ✅ SAFETY: context is required (strict research mode)
+  try {
+    const { message, context } = await req.json();
+
+    // ✅ Validation
     if (!context || context.trim() === "") {
       return res
         .status(400)
@@ -40,7 +41,7 @@ ${message}
 
     let lastError = null;
 
-    // Try models one after the other (fallback system)
+    // Try models in order
     for (const model of MODELS) {
       try {
         const resp = await fetch(
@@ -66,41 +67,37 @@ ${message}
         );
 
         if (!resp.ok) {
-          const err = await resp.text();
-          lastError = `${model}: ${err}`;
+          lastError = `${model}: ${await resp.text()}`;
           continue;
         }
 
         const data = await resp.json();
-        const answer =
-          data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        const answer = data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
         if (answer) {
-          return res.json({
+          return res.status(200).json({
             model_used: model,
             response: answer
           });
         }
 
         lastError = `${model}: Empty response`;
-      } catch (error) {
-        lastError = `${model}: ${error.message}`;
+      } catch (err) {
+        lastError = `${model}: ${err.message}`;
       }
     }
 
-    // If all models fail
+    // All models failed
     return res.status(500).json({
       error: "All Gemini models failed.",
       details: lastError
     });
 
   } catch (error) {
-    console.error("Chat error:", error);
-    res.status(500).json({
+    console.error("Chat handler error:", error);
+    return res.status(500).json({
       error: "Internal server error.",
       details: error.message
     });
   }
-});
-
-export default router;
+}
