@@ -13,9 +13,9 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { message, context } = await req.json();
+    // ✅ Parse JSON body correctly
+    const { message, context } = req.body; // req.body works if Content-Type is JSON
 
-    // ✅ Validation
     if (!context || context.trim() === "") {
       return res
         .status(400)
@@ -41,27 +41,16 @@ ${message}
 
     let lastError = null;
 
-    // Try models in order
     for (const model of MODELS) {
       try {
         const resp = await fetch(
           `https://generativelanguage.googleapis.com/v1/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`,
           {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              contents: [
-                {
-                  role: "user",
-                  parts: [{ text: prompt }]
-                }
-              ],
-              generationConfig: {
-                temperature: 0.4,
-                maxOutputTokens: 800
-              }
+              contents: [{ role: "user", parts: [{ text: prompt }] }],
+              generationConfig: { temperature: 0.4, maxOutputTokens: 800 }
             })
           }
         );
@@ -75,10 +64,7 @@ ${message}
         const answer = data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
         if (answer) {
-          return res.status(200).json({
-            model_used: model,
-            response: answer
-          });
+          return res.status(200).json({ model_used: model, response: answer });
         }
 
         lastError = `${model}: Empty response`;
@@ -87,17 +73,10 @@ ${message}
       }
     }
 
-    // All models failed
-    return res.status(500).json({
-      error: "All Gemini models failed.",
-      details: lastError
-    });
+    return res.status(500).json({ error: "All Gemini models failed.", details: lastError });
 
   } catch (error) {
     console.error("Chat handler error:", error);
-    return res.status(500).json({
-      error: "Internal server error.",
-      details: error.message
-    });
+    return res.status(500).json({ error: "Internal server error.", details: error.message });
   }
 }
