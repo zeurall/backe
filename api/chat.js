@@ -2,22 +2,19 @@
 import fetch from "node-fetch";
 
 export default async function handler(req, res) {
-  // --- CORS headers ---
+  // ✅ Allow CORS for frontend requests
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  // Handle preflight requests
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
+  if (req.method === "OPTIONS") return res.status(200).end(); // preflight
 
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
-    const { message, context: paperSectionsInput } = req.body;
+    const { message, context: paperSectionsInput, paperLink } = req.body;
 
     if (!message || message.trim() === "") {
       return res.status(400).json({ error: "Message is required." });
@@ -58,7 +55,6 @@ export default async function handler(req, res) {
     };
 
     const paperSections = paperSectionsInput || {};
-
     let useContext = false;
     let contextToSend = "";
     let detectedSection = "General";
@@ -84,16 +80,23 @@ export default async function handler(req, res) {
       }
     }
 
+    // --- Include the paper link in the prompt automatically ---
     const prompt = useContext
-      ? `Use ONLY the following context to answer the question.
-If the answer is not in the context, say: "Not found in provided context."
+      ? `You are a research assistant AI. Answer the question ONLY based on the provided content or the paper URL.
+If the answer is not in the content or the URL, say: "Not found in provided context."
+
+PAPER URL: ${paperLink || "No URL provided"}
 
 CONTEXT:
 ${contextToSend}
 
 QUESTION:
 ${message}`
-      : message;
+      : `You are a research assistant AI. Read and understand the paper at: ${paperLink || "No URL provided"}
+Answer the user's question based ONLY on that paper.
+
+QUESTION:
+${message}`;
 
     let lastError = null;
 
