@@ -1,42 +1,60 @@
-import fetch from "node-fetch";
-
 export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== "POST")
+    return res.status(405).json({ error: "Method not allowed" });
 
   const { message } = req.body;
-  if (!message) return res.status(400).json({ error: "Message is required" });
+  if (!message)
+    return res.status(400).json({ error: "Message is required" });
 
-  if (!process.env.OPENROUTER_API_KEY) {
-    return res.status(500).json({ error: "OpenRouter API key not set" });
+  if (!process.env.GEMINI_API_KEY) {
+    return res.status(500).json({ error: "GEMINI_API_KEY not set" });
   }
 
-  try {
-    const resp = await fetch("https://api.openrouter.ai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "x-ai/grok-4.1-fast:free",
-        messages: [
-          { role: "system", content: "You are a helpful assistant." },
-          { role: "user", content: message }
-        ],
-        temperature: 0.7,
-        stream: false,
-        reasoning_enabled: true // toggle reasoning if needed
-      })
-    });
+  // ✅ Only models YOUR key supports (from your CMD result)
+  const MODELS = [
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
+    "gemini-2.5-flash-lite",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-001",
+    "gemini-2.0-flash-lite",
+    "gemini-2.0-flash-lite-001"
+  ];
 
-    const data = await resp.json();
-    const reply = data?.choices?.[0]?.message?.content;
+  for (let model of MODELS) {
+    try {
+      console.log(`Trying Gemini → ${model}`);
 
-    if (reply) return res.json({ source: "grok-4.1", reply });
-    else return res.status(500).json({ error: "Grok 4.1 returned empty response" });
+      const resp = await fetch(
+        `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [{ text: message }]
+              }
+            ]
+          })
+        }
+      );
 
-  } catch (err) {
-    console.log("OpenRouter Grok error:", err.message);
-    return res.status(500).json({ error: "Grok 4.1 API request failed" });
+      const data = await resp.json();
+      const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (reply) {
+        return res.json({
+          source: model,
+          reply
+        });
+      }
+
+      console.log(`${model} returned empty`);
+    } catch (err) {
+      console.log(`${model} failed: ${err.message}`);
+    }
   }
+
+  return res.status(500).json({ error: "All Gemini models failed" });
 }
